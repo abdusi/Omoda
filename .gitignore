@@ -1,0 +1,18 @@
+.gradle/
+.kotlin/
+.idea/
+**/build/
+local.properties
+*.iml
+tools/__pycache__/
+
+# Local configuration, credentials and generated packages
+*.log
+.env
+.env.*
+*.jks
+*.keystore
+*.apk
+*.aab
+.DS_Store
+Thumbs.db

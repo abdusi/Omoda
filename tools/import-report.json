@@ -1,0 +1,50 @@
+[
+  {
+    "subject": "tajik",
+    "title": "Забони тоҷикӣ",
+    "count": 200,
+    "range": [
+      1,
+      200
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 202,
+    "watermark_pages": 202
+  },
+  {
+    "subject": "math",
+    "title": "Математика",
+    "count": 200,
+    "range": [
+      1,
+      200
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 201,
+    "watermark_pages": 201
+  },
+  {
+    "subject": "geography",
+    "title": "География",
+    "count": 200,
+    "range": [
+      1,
+      200
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 135,
+    "watermark_pages": 135
+  },
+  {
+    "subject": "english",
+    "title": "Забони англисӣ",
+    "count": 190,
+    "range": [
+      1,
+      190
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 146,
+    "watermark_pages": 146
+  }
+]

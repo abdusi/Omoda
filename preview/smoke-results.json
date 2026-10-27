@@ -1,0 +1,7 @@
+[
+  "Answer stays locked after submission; next disabled before answer",
+  "Question, order and submitted answer survive process recreation",
+  "25 unique questions; correct and incorrect feedback; final score 12/25 = 48%",
+  "Restart creates an unanswered new attempt",
+  "Exit confirmation and math subject open correctly"
+]

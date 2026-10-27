@@ -1,0 +1,26 @@
+[
+  {
+    "subject": "chemistry",
+    "title": "Химия",
+    "count": 519,
+    "range": [
+      1,
+      519
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 145,
+    "watermark_pages": 145
+  },
+  {
+    "subject": "physics",
+    "title": "Физика",
+    "count": 504,
+    "range": [
+      1,
+      504
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 182,
+    "watermark_pages": 182
+  }
+]

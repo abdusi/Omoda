@@ -1,0 +1,26 @@
+[
+  {
+    "subject": "history",
+    "title": "Таърих",
+    "count": 480,
+    "range": [
+      1,
+      480
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 158,
+    "watermark_pages": 158
+  },
+  {
+    "subject": "law",
+    "title": "Ҳуқуқ",
+    "count": 414,
+    "range": [
+      1,
+      414
+    ],
+    "skipped": [],
+    "watermark_blocks_removed": 111,
+    "watermark_pages": 111
+  }
+]
