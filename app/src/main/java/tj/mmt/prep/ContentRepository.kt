@@ -251,7 +251,8 @@ class ContentRepository(context: Context) {
                               onBytes: (suspend (Long, Long) -> Unit)? = null) {
         ContentFiles.child(root, path.trimEnd('/')) // Validate the remote relative path too.
         val url = URL(base + path)
-        require(url.protocol == "https")
+        require(url.protocol == "https" || (BuildConfig.DEBUG && url.protocol == "http" &&
+            url.host in setOf("127.0.0.1", "localhost")))
         target.parentFile!!.mkdirs()
         val connection = url.openConnection() as HttpURLConnection
         connection.connectTimeout = 15_000

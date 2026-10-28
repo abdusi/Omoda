@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,7 +14,11 @@ android {
         targetSdk = 35
         versionCode = 6
         versionName = "0.6.0"
-        buildConfigField("String", "CONTENT_BASE_URL", "\"https://raw.githubusercontent.com/abdusi/Omoda/content/\"")
+        val contentBaseUrl = providers.gradleProperty("contentBaseUrl")
+            .getOrElse("https://raw.githubusercontent.com/abdusi/Omoda/content/")
+        require(URI(contentBaseUrl).scheme in listOf("http", "https"))
+        buildConfigField("String", "CONTENT_BASE_URL",
+            "\"" + contentBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
