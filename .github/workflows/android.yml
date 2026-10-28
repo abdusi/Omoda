@@ -1,0 +1,44 @@
+name: Android and content checks
+on:
+  push:
+    branches: [main, codex/online-offline-tests]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+      - run: pip install -r tools/requirements.txt
+      - run: python -m unittest discover -s tools -p 'test_*.py' -v
+      - run: python tools/content.py
+      - name: Verify bundled catalog matches generated seed
+        run: cmp .content/catalog.json app/src/main/bootstrap/catalog.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bash gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      - name: Ensure no question banks or images were embedded
+        run: python tools/check_apk.py app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Omoda-0.5-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-reports
+          path: |
+            app/build/reports/
+            app/build/test-results/

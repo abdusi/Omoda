@@ -1,10 +1,11 @@
 package tj.mmt.prep
 
-import android.content.res.AssetManager
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class Fragment(val text: String, val image: String, val width: Int, val height: Int, val visual: Boolean)
+data class Fragment(val text: String, val image: String, val width: Int, val height: Int,
+                    val visual: Boolean, val sha256: String = "")
 data class Question(val id: String, val number: Int, val page: Int, val source: String,
                     val prompt: Fragment, val options: List<Fragment>, val correct: Int)
 data class Subject(val id: String, val title: String, val code: String, val caption: String, val symbol: String)
@@ -33,20 +34,33 @@ val clusters = listOf(
     Cluster(5, "Тиб, биология ва варзиш", listOf("tajik", "biology", "chemistry", "physics"))
 )
 
-class QuestionBank(private val assets: AssetManager) {
-    fun load(): Map<String, List<Question>> = subjects.associate { subject ->
-        val json = assets.open("${subject.id}.json").bufferedReader(Charsets.UTF_8).use { JSONArray(it.readText()) }
+object QuestionBank {
+    fun parse(text: String, directory: File, checkImages: Boolean): List<Question> {
+        val json = JSONArray(text)
+        require(json.length() in 25..10000)
         val questions = (0 until json.length()).map { index ->
             val q = json.getJSONObject(index)
             val options = q.getJSONArray("options")
             Question(q.getString("id"), q.getInt("number"), q.getInt("page"), q.getString("source"),
-                fragment(q.getJSONObject("prompt")), (0 until options.length()).map { fragment(options.getJSONObject(it)) }, q.getInt("correct"))
+                fragment(q.getJSONObject("prompt"), directory, checkImages),
+                (0 until options.length()).map { fragment(options.getJSONObject(it), directory, checkImages) }, q.getInt("correct"))
         }
         require(questions.size >= 25)
         require(questions.map { it.id }.distinct().size == questions.size)
         require(questions.all { it.options.size == 4 && it.correct in 0..3 })
-        subject.id to questions
+        return questions
     }
-    private fun fragment(json: JSONObject) = Fragment(json.getString("text"), json.getString("image"),
-        json.getInt("width"), json.getInt("height"), json.optBoolean("visual"))
+    private fun fragment(json: JSONObject, directory: File, checkImages: Boolean): Fragment {
+        val visual = json.getBoolean("visual")
+        val image = if (visual) ContentFiles.child(directory, json.getString("image")) else null
+        if (checkImages && visual) require(image!!.isFile)
+        val text = json.getString("text")
+        require(visual || text.isNotBlank())
+        val width = json.getInt("width")
+        val height = json.getInt("height")
+        require(width in 1..20000 && height in 1..20000 && width.toLong() * height <= 40_000_000)
+        val sha = if (visual) json.getString("sha256") else ""
+        require(!visual || sha.matches(Regex("[a-f0-9]{64}")))
+        return Fragment(text, image?.absolutePath.orEmpty(), width, height, visual, sha)
+    }
 }

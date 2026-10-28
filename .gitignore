@@ -16,3 +16,8 @@ tools/__pycache__/
 *.aab
 .DS_Store
 Thumbs.db
+.venv/
+.source/
+.content/
+.gradle-local/
+tools/__pycache__/
