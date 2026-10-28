@@ -31,6 +31,17 @@ def publish():
             raise ValueError("No catalog to publish")
         hashes = git("hash-object", "-w", "--stdin-paths",
                      data="".join(str(p) + "\n" for p in files).encode()).stdout.decode().splitlines()
+        if len(hashes) != len(files):
+            raise ValueError("Incomplete Git object generation")
+        if parent:
+            existing = {}
+            for record in git("ls-tree", "-r", parent).stdout.decode().splitlines():
+                metadata, name = record.split("\t", 1)
+                existing[name] = metadata.split()[2]
+            for file, sha in zip(files, hashes):
+                name = file.relative_to(OUTPUT).as_posix()
+                if name.startswith("banks/") and name in existing and existing[name] != sha:
+                    raise ValueError(f"Refusing to mutate an immutable bank: {name}")
         records = "".join(f"100644 {sha}\t{p.relative_to(OUTPUT).as_posix()}\n"
                           for p, sha in zip(files, hashes))
         git("update-index", "--index-info", data=records.encode(), env=env)
