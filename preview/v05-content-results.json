@@ -5,8 +5,9 @@
     "Full online attempt scores 12/25 correctly",
     "Entire cluster downloads and installs all four subject packages",
     "Downloaded history starts and checks answers with Wi-Fi/mobile data disabled",
-    "Removing one downloaded subject preserves other installed subjects"
+    "Removing one downloaded subject preserves other installed subjects",
+    "Final APK preserves installed packages and renders a visual question without network"
   ],
-  "passed": 6,
+  "passed": 7,
   "complete": true
 }
