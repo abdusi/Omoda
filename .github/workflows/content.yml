@@ -1,0 +1,61 @@
+name: Publish question content
+on:
+  push:
+    branches: [main, codex/online-offline-tests]
+    paths:
+      - '.github/workflows/content.yml'
+      - 'tools/**'
+      - 'app/src/main/assets/**'
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+    inputs:
+      refresh_ntc:
+        description: Fetch and verify current NTC PDFs before publication
+        type: boolean
+        default: true
+permissions:
+  contents: write
+concurrency:
+  group: publish-question-content
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+      - run: pip install -r tools/requirements.txt
+      - run: python -m unittest discover -s tools -p 'test_*.py' -v
+      - uses: actions/cache@v4
+        with:
+          path: .source
+          key: ntc-v1-${{ github.run_id }}
+          restore-keys: ntc-v1-
+      - name: Build initial content from the verified repository banks
+        if: github.event_name == 'push' || inputs.refresh_ntc == false
+        run: |
+          python tools/content.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python tools/publish_content.py
+      - name: Import current source PDFs
+        if: github.event_name != 'workflow_dispatch' || inputs.refresh_ntc == true
+        run: python tools/sync_ntc.py
+      - name: Publish immutable versions and current catalog
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python tools/publish_content.py
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: content-import-diagnostics
+          path: |
+            .source/reports/
+            .source/sources.json

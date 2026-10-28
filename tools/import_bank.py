@@ -70,12 +70,13 @@ def crop_image(page_image, box, scale, path, extra_boxes=()):
         image.paste(piece, ((image.width-piece.width)//2, y))
         y += piece.height+16
     image.save(path, "WEBP", lossless=True)
-    return {"image": str(path.relative_to(ROOT / "app/src/main/assets")).replace("\\", "/"),
+    return {"image": f"questions/{path.parent.name}/{path.name}",
             "width": image.width, "height": image.height}
 
 
-def extract(source, limit, specs=SPECS, report_name="import-report.json"):
-    assets = ROOT / "app/src/main/assets"
+def extract(source, limit, specs=SPECS, report_name="import-report.json", *, output_root=None):
+    output_root = Path(output_root) if output_root is not None else ROOT
+    assets = output_root / "app/src/main/assets"
     assets.mkdir(parents=True, exist_ok=True)
     report = []
     for sid, title, stem, start, key_start in specs:
@@ -227,7 +228,8 @@ def extract(source, limit, specs=SPECS, report_name="import-report.json"):
         report.append({"subject": sid, "title": title, "count": len(items), "range": [1, cap], "skipped": skipped,
                        "watermark_blocks_removed": sum(removed), "watermark_pages": len([n for n in removed if n])})
         print(f"{sid}: {len(items)} questions; {len(skipped)} skipped", flush=True)
-    (ROOT/"tools"/report_name).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    (output_root/"tools").mkdir(parents=True, exist_ok=True)
+    (output_root/"tools"/report_name).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -10,15 +10,18 @@ android {
         applicationId = "tj.mmt.prep"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
+        buildConfigField("String", "CONTENT_BASE_URL", "\"https://raw.githubusercontent.com/abdusi/Omoda/content/\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
+    // Question banks are distributed independently, never embedded in the APK.
+    sourceSets["main"].assets.setSrcDirs(listOf("src/main/bootstrap"))
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 dependencies {
@@ -33,4 +36,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.5")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

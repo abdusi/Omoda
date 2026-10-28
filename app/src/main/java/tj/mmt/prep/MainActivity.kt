@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
         object : AbstractSavedStateViewModelFactory(this, null) {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(key: String, modelClass: Class<T>, handle: SavedStateHandle): T =
-                PrepViewModel(QuestionBank(application.assets), handle) as T
+                PrepViewModel(ContentRepository(application), handle) as T
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,12 +102,8 @@ class MainActivity : ComponentActivity() {
             Box(Modifier.widthIn(max = 600.dp).fillMaxSize()) {
                 when {
                     model.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Green) }
-                    model.error -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Саволҳо бор нашуданд", style = MaterialTheme.typography.titleLarge)
-                        Text("Лутфан барномаро аз нав кушоед.", color = Muted)
-                    }
                     else -> when (model.screen) {
-                        Screen.CLUSTERS -> ClusterScreen(model::openSubjects)
+                        Screen.CLUSTERS -> ClusterScreen(model)
                         Screen.SUBJECTS -> SubjectScreen(model, back)
                         Screen.QUIZ -> QuizScreen(model, back)
                         Screen.RESULT -> ResultScreen(model)
@@ -116,6 +112,28 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    if (model.notice != null && model.screen in listOf(Screen.CLUSTERS, Screen.SUBJECTS)) {
+        Dialog(onDismissRequest = model::dismissNotice) {
+            Surface(shape = RoundedCornerShape(20.dp), color = Color.White) {
+                Column(Modifier.padding(24.dp)) {
+                    Text(model.notice.orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = model::dismissNotice, modifier = Modifier.align(Alignment.End)) { Text("Фаҳмо") }
+                }
+            }
+        }
+    }
+    if (model.busy) AlertDialog(
+        onDismissRequest = {},
+        title = { Text("Лутфан интизор шавед") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(model.progress)
+                Text("Барномаро то анҷоми боргирӣ кушода нигоҳ доред.", color = Muted, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = model::cancelOperation) { Text("Бекор кардан") } }
+    )
     if (confirmExit) AlertDialog(
         onDismissRequest = { confirmExit = false },
         title = { Text("Аз санҷиш мебароед?") },
@@ -153,10 +171,11 @@ class MainActivity : ComponentActivity() {
         modifier = Modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 11.dp, vertical = 5.dp))
 }
 
-@Composable private fun ClusterScreen(open: (Int) -> Unit) {
+@Composable private fun ClusterScreen(model: PrepViewModel) {
+    val open = model::openSubjects
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Brand(); Pill("ММТ · 2026", Muted, Color.White)
+            Brand(); Pill("ММТ · " + model.catalog.year, Muted, Color.White)
         }
         Spacer(Modifier.height(34.dp))
         Text("Оянда аз\nомодагӣ оғоз меёбад.", style = MaterialTheme.typography.headlineLarge, color = Ink)
@@ -199,44 +218,90 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun storageSize(bytes: Long): String = if (bytes < 1024 * 1024)
+    (bytes / 1024).toString() + " КиБ"
+else String.format(java.util.Locale.ROOT, "%.1f МиБ", bytes / (1024.0 * 1024.0))
+
 @Composable private fun SubjectScreen(model: PrepViewModel, back: () -> Unit) {
+    var removeId by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
-        PageHeader("Кластери ${model.clusterId}", back)
+        PageHeader("Кластери " + model.clusterId, back) {
+            TextButton(onClick = model::refreshCatalog, enabled = !model.refreshing) {
+                Text(if (model.refreshing) "Навсозӣ…" else "Навсозӣ")
+            }
+        }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
             Spacer(Modifier.height(16.dp))
             Pill(model.cluster.title.uppercase())
             Spacer(Modifier.height(18.dp))
             Text("Аз кадом фан\nоғоз мекунем?", style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.height(12.dp))
-            Text("Фанро интихоб кунед. Барои ҳар кӯшиш\n25 саволи тасодуфӣ пешниҳод мешавад.", color = Muted)
-            Spacer(Modifier.height(28.dp))
+            Text("Онлайн санҷед ё фанҳоро барои омӯзиши бе интернет боргирӣ кунед.", color = Muted)
+            Spacer(Modifier.height(18.dp))
+            val pending = model.activeSubjects.mapNotNull { model.catalog.banks[it.id] }
+                .filter { model.downloaded[it.id]?.version != it.version }
+            OutlinedButton(onClick = model::downloadCluster, enabled = pending.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(if (pending.isEmpty()) "Кластер боргирӣ шудааст" else
+                    "Боргирии кластер · " + storageSize(pending.sumOf { it.packBytes }))
+            }
+            Spacer(Modifier.height(20.dp))
             model.activeSubjects.forEachIndexed { i, subject ->
-                Surface(onClick = { model.start(subject.id) }, color = Color.White, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Line),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        val palette = listOf(SoftGreen, Color(0xFFEEF0FB), Color(0xFFFDF1E6), Color(0xFFF4ECF7))
-                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(palette[i]), contentAlignment = Alignment.Center) {
-                            Text(subject.symbol, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = Ink)
+                val release = model.catalog.banks[subject.id]
+                val local = model.downloaded[subject.id]
+                val update = local != null && release != null && local.version != release.version
+                Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            val palette = listOf(SoftGreen, Color(0xFFEEF0FB), Color(0xFFFDF1E6), Color(0xFFF4ECF7))
+                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(palette[i]), contentAlignment = Alignment.Center) {
+                                Text(subject.symbol, fontWeight = FontWeight.SemiBold, fontSize = 23.sp, color = Ink)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text(subject.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                                Text((release?.count ?: local?.count ?: 0).toString() + " савол · " + subject.code,
+                                    color = Muted, fontSize = 13.sp)
+                            }
                         }
-                        Column(Modifier.weight(1f)) {
-                            Text(subject.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            Text("${model.pools[subject.id].orEmpty().size} савол · ${subject.code}", color = Muted, fontSize = 13.sp)
+                        Spacer(Modifier.height(10.dp))
+                        if (local != null) Text(
+                            if (update) "Бе интернет дастрас · Навсозӣ ҳаст" else "Бе интернет дастрас",
+                            color = Green, fontSize = 12.sp)
+                        else Text("Барои офлайн: " + storageSize(release?.packBytes ?: 0), color = Muted, fontSize = 12.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { model.start(subject.id, online = true) }, enabled = release != null,
+                                modifier = Modifier.weight(1f)) { Text("Онлайн") }
+                            OutlinedButton(onClick = { model.start(subject.id, online = false) }, enabled = local != null,
+                                modifier = Modifier.weight(1f)) { Text("Офлайн") }
                         }
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Оғози санҷиш аз ${subject.title}", tint = Muted)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            if (local == null || update) TextButton(onClick = { model.downloadSubject(subject.id) }, enabled = release != null) {
+                                Text((if (update) "Навсозӣ · " else "Боргирӣ · ") + storageSize(release?.packBytes ?: 0))
+                            }
+                            if (local != null) TextButton(onClick = { removeId = subject.id }) {
+                                Text("Ҳазфи боргирӣ", color = Muted)
+                            }
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            Surface(color = SoftGreen, shape = RoundedCornerShape(18.dp)) {
-                Column(Modifier.padding(18.dp)) {
-                    Text("Бо суръати худ омӯзед", color = Green, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(5.dp))
-                    Text("Пас аз ҳар ҷавоб натиҷаро мебинед. Маҳдудияти вақт нест. Интернет лозим нест.", color = Green, fontSize = 14.sp, lineHeight = 22.sp)
-                }
-            }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("Ҳар санҷиш 25 савол дорад. Фанҳои умумӣ як бор боргирӣ мешаванд. Матн ва тасвирҳои санҷиши онлайн пеш аз оғоз омода мешаванд.",
+                color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+            Spacer(Modifier.height(32.dp))
         }
     }
+    if (removeId != null) AlertDialog(
+        onDismissRequest = { removeId = null },
+        title = { Text("Файли фанро ҳазф мекунед?") },
+        text = { Text("Барои истифодаи офлайн онро аз нав боргирӣ кардан лозим мешавад.") },
+        confirmButton = { TextButton(onClick = {
+            removeId?.let(model::removeSubject); removeId = null
+        }) { Text("Ҳазф кардан", color = Red) } },
+        dismissButton = { TextButton(onClick = { removeId = null }) { Text("Бекор кардан") } }
+    )
 }
 
 @Composable private fun QuizScreen(model: PrepViewModel, back: () -> Unit) {
@@ -263,7 +328,7 @@ class MainActivity : ComponentActivity() {
                 }
             } else Text(question.prompt.text, style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(12.dp))
-            Text("Намунаи ММТ 2026 · № ${question.number} · саҳ. ${question.page}", fontSize = 11.sp, color = Muted)
+            Text("Намунаи ММТ ${model.attemptYear} · № ${question.number} · саҳ. ${question.page}", fontSize = 11.sp, color = Muted)
             Spacer(Modifier.height(24.dp))
             Text(if (answered) "Натиҷаи ҷавоби шумо" else "Як ҷавобро интихоб кунед", fontSize = 13.sp, color = Muted)
             Spacer(Modifier.height(12.dp))
@@ -310,12 +375,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable private fun FragmentView(fragment: Fragment, prompt: Boolean) {
-    val context = LocalContext.current
     var zoom by remember(fragment.image) { mutableStateOf(false) }
     val bitmap by key(fragment.image) {
         produceState<android.graphics.Bitmap?>(null) {
             value = withContext(Dispatchers.IO) {
-                runCatching { context.assets.open(fragment.image).use { BitmapFactory.decodeStream(it) } }.getOrNull()
+                runCatching { java.io.File(fragment.image).inputStream().use { BitmapFactory.decodeStream(it) } }.getOrNull()
             }
         }
     }
