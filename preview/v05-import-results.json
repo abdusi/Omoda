@@ -1,0 +1,18 @@
+{
+  "sourcePage": "https://www.ntc.tj/tj/ba-dovtalab/testho.html",
+  "year": 2026,
+  "counts": {
+    "tajik": 768,
+    "math": 624,
+    "geography": 409,
+    "english": 190,
+    "biology": 472,
+    "chemistry": 519,
+    "physics": 504,
+    "history": 480,
+    "law": 414,
+    "literature": 312
+  },
+  "total": 4692,
+  "verification": "Every imported question number and answer matched its source key; full supported single-choice sections."
+}

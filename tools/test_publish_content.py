@@ -48,6 +48,17 @@ class PublishTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "immutable"):
                     publish_content.publish()
                 self.assertEqual(git("ls-remote", "origin", "content").split()[0], first)
+                bank.write_text("original")
+                newer = output / "banks/tajik/other-version/bank.json"
+                newer.parent.mkdir(parents=True)
+                newer.write_text("another bootstrap version")
+                (output / "catalog.json").write_text(json.dumps({"subjects": [{"source": {}}]}))
+                publish_content.publish()
+                latest = git("ls-remote", "origin", "content").split()[0]
+                live = json.loads(git("show", f"{latest}:catalog.json"))
+                self.assertEqual(live["subjects"][0]["source"]["year"], 2026)
+                self.assertEqual(git("show", f"{latest}:banks/tajik/other-version/bank.json"), "another bootstrap version")
+                self.assertEqual(git("write-tree"), original_index)
 
 
 if __name__ == "__main__":

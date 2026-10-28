@@ -44,6 +44,7 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
 
     init {
         viewModelScope.launch {
+            repository.cleanupInterruptedDownloads()
             downloaded = withContext(Dispatchers.IO) { repository.installed() }
             val restored = withContext(Dispatchers.IO) { runCatching { repository.restoreQuestions() }.getOrDefault(emptyList()) }
             questions = restored
@@ -91,7 +92,9 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
     }
 
     private suspend fun showProgress(label: String, done: Int, total: Int) {
-        withContext(Dispatchers.Main) { progress = label + " · " + done + " / " + total }
+        withContext(Dispatchers.Main) {
+            progress = label + " · " + if (total == 100) done.toString() + "%" else done.toString() + " / " + total
+        }
     }
 
     fun downloadSubject(id: String) {

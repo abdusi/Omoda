@@ -64,6 +64,18 @@ class ContentRepository(context: Context) {
     private val base = BuildConfig.CONTENT_BASE_URL.trimEnd('/') + "/"
     private val catalogFile = File(root, "catalog.json")
 
+    suspend fun cleanupInterruptedDownloads() = withContext(Dispatchers.IO) {
+        File(root, "temporary").deleteRecursively()
+        File(root, "catalog.download").delete()
+        val active = runCatching { File(root, "session.txt").readText().trim() }.getOrNull()
+        File(root, "sessions").listFiles()?.filter { it.name != active }?.forEach { it.deleteRecursively() }
+        val installed = installed()
+        subjects.forEach { subject ->
+            File(root, "installed/" + subject.id).listFiles()
+                ?.filter { it.name != installed[subject.id]?.version }?.forEach { it.deleteRecursively() }
+        }
+    }
+
     fun catalog(): ContentCatalog = runCatching { ContentCatalog.parse(catalogFile.readText()) }
         .getOrElse { ContentCatalog.parse(bootstrap) }
 
@@ -102,10 +114,11 @@ class ContentRepository(context: Context) {
         require(root.usableSpace > release.packBytes + release.unpackedBytes + 5_000_000) { "Not enough storage" }
         val temporary = File(root, "temporary/" + UUID.randomUUID()).also { it.mkdirs() }
         try {
-            progress(0, 1)
+            progress(0, 100)
             val archive = File(temporary, "pack.zip")
             fetch(release.path + "pack.zip", archive, release.packBytes, release.packSha256,
-                check = { context.ensureActive() })
+                check = { context.ensureActive() },
+                onBytes = { done, total -> progress((done * 100 / total).toInt(), 100) })
             require(archive.length() == release.packBytes)
             val stage = File(temporary, "bank").also { it.mkdirs() }
             archive.inputStream().use {
@@ -119,7 +132,7 @@ class ContentRepository(context: Context) {
             Files.move(stage.toPath(), directory.toPath(), StandardCopyOption.ATOMIC_MOVE)
             ContentFiles.replace(pointer(release.id), release.json().toString().toByteArray(Charsets.UTF_8))
             directory.parentFile!!.listFiles()?.filter { it.isDirectory && it != directory }?.forEach { it.deleteRecursively() }
-            progress(1, 1)
+            progress(100, 100)
         } finally { temporary.deleteRecursively() }
     }
 
@@ -216,7 +229,8 @@ class ContentRepository(context: Context) {
         }
     }
 
-    private fun fetch(path: String, target: File, maximum: Long, sha: String? = null, check: () -> Unit) {
+    private suspend fun fetch(path: String, target: File, maximum: Long, sha: String? = null, check: () -> Unit,
+                              onBytes: (suspend (Long, Long) -> Unit)? = null) {
         ContentFiles.child(root, path.trimEnd('/')) // Validate the remote relative path too.
         val url = URL(base + path)
         require(url.protocol == "https")
@@ -233,6 +247,7 @@ class ContentRepository(context: Context) {
                 target.outputStream().use { output ->
                     val buffer = ByteArray(32768)
                     var size = 0L
+                    var reported = -1
                     while (true) {
                         check()
                         val count = input.read(buffer)
@@ -240,6 +255,11 @@ class ContentRepository(context: Context) {
                         size += count
                         require(size <= maximum) { "Download too large" }
                         output.write(buffer, 0, count)
+                        val percent = (size * 100 / maximum).toInt()
+                        if (percent != reported) {
+                            onBytes?.invoke(size, maximum)
+                            reported = percent
+                        }
                     }
                     output.fd.sync()
                 }

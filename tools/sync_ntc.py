@@ -84,6 +84,10 @@ def sync(workspace, output, page_url=SOURCE_PAGE, selected=SUBJECTS, limit=0):
     workspace.mkdir(parents=True, exist_ok=True)
     state_path = workspace / "sources.json"
     state = json.loads(state_path.read_text("utf-8")) if state_path.exists() else {}
+    tools_dir = Path(__file__).resolve().parent
+    importer_revision = hashlib.sha256(b"\n".join(
+        (tools_dir / name).read_bytes() for name in ("import_bank.py", "pdf_clean.py", "requirements.txt")
+    )).hexdigest()
     for sid in selected:
         spec = ALL_SPECS[sid]
         provenance = dict(pairs[sid], year=year, language="tj", component="A")
@@ -95,7 +99,7 @@ def sync(workspace, output, page_url=SOURCE_PAGE, selected=SUBJECTS, limit=0):
                 raise ValueError(f"{sid}: source is not a PDF")
             (sources / name).write_bytes(data)
             provenance[field.replace("Url", "Sha256")] = hashlib.sha256(data).hexdigest()
-        fingerprint = dict(provenance, limit=limit)
+        fingerprint = dict(provenance, limit=limit, importerRevision=importer_revision)
         existing = workspace / "app/src/main/assets" / f"{sid}.json"
         if state.get(sid) == fingerprint and existing.exists():
             print(f"{sid}: unchanged", flush=True)

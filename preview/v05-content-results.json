@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "Online session fetches and persists exactly 25 unique questions",
+    "Question order and submitted answer survive process death",
+    "Full online attempt scores 12/25 correctly",
+    "Entire cluster downloads and installs all four subject packages",
+    "Downloaded history starts and checks answers with Wi-Fi/mobile data disabled",
+    "Removing one downloaded subject preserves other installed subjects"
+  ],
+  "passed": 6,
+  "complete": true
+}

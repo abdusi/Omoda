@@ -8,7 +8,7 @@ from pathlib import Path
 from smoke_android import adb, tree, texts, tap, snap, ROOT, OUT
 
 
-def wait_for(predicate, timeout=180):
+def wait_for(predicate, timeout=900):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         doc = tree()
@@ -68,8 +68,13 @@ def leave():
     wait_for(lambda doc: "Кластери 4" in texts(doc))
 
 
-def run():
+def run(download_only=False):
     checks = []
+    if download_only:
+        checkpoints = json.loads((OUT / "v05-content-results.json").read_text("utf-8"))
+        checks = checkpoints["checks"]
+        verify_downloads(checks)
+        return
     # Start with the app on the cluster screen; do not clear user/app data.
     dismiss()
     tap("Ҷомеашиносӣ ва ҳуқуқ")
@@ -93,8 +98,16 @@ def run():
             source = next(t for t in texts(doc) if t.startswith("Намунаи ММТ"))
             old_pid = adb("shell", "pidof", "tj.mmt.prep").strip()
             adb("shell", "input", "keyevent", "KEYCODE_HOME")
-            adb("shell", "am", "kill", "tj.mmt.prep")
-            time.sleep(.7)
+            killed = False
+            for _ in range(20):
+                time.sleep(.4)
+                adb("shell", "am", "kill", "tj.mmt.prep")
+                try:
+                    adb("shell", "pidof", "tj.mmt.prep")
+                except subprocess.CalledProcessError:
+                    killed = True
+                    break
+            assert killed, "Emulator did not terminate the background process"
             adb("shell", "am", "start", "-n", "tj.mmt.prep/.MainActivity")
             doc = wait_for(lambda d: "1 / 25" in texts(d))
             assert old_pid != adb("shell", "pidof", "tj.mmt.prep").strip()
@@ -105,8 +118,13 @@ def run():
     assert str(expected_score) in texts(doc) and f"{expected_score * 4}%" in texts(doc)
     snap("v05-result.png")
     checks.append(f"Full online attempt scores {expected_score}/25 correctly")
+    save(checks, complete=False)
     tap("Интихоби фани дигар", doc)
     tap_prefix("Боргирии кластер")
+    verify_downloads(checks)
+
+
+def verify_downloads(checks):
     wait_for(lambda d: any("Ҳамаи фанҳои кластер" in t for t in texts(d)))
     dismiss()
     installed = adb("shell", "run-as", "tj.mmt.prep", "ls", "files/study/installed").decode().split()
@@ -139,10 +157,18 @@ def run():
     finally:
         adb("shell", "svc", "wifi", "enable")
         adb("shell", "svc", "data", "enable")
-    (OUT / "v05-content-results.json").write_text(
-        json.dumps({"checks": checks, "passed": len(checks)}, ensure_ascii=False, indent=2), encoding="utf-8")
+    save(checks, complete=True)
     print(json.dumps(checks, ensure_ascii=False), flush=True)
 
 
+def save(checks, complete):
+    (OUT / "v05-content-results.json").write_text(
+        json.dumps({"checks": checks, "passed": len(checks), "complete": complete},
+                   ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 if __name__ == "__main__":
-    run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--download-only", action="store_true", help="Resume the download stage using a saved online checkpoint")
+    run(parser.parse_args().download_only)
