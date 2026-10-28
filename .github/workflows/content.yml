@@ -35,7 +35,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .source
-          key: ntc-v1-${{ github.run_id }
+          key: ntc-v1-${{ github.run_id }}
           restore-keys: ntc-v1-
       - name: Import current source PDFs
         if: github.event_name == 'schedule' || inputs.refresh_ntc == true

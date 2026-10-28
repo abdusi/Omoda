@@ -76,10 +76,12 @@ def build(assets, output, *, year=2026, source_page=SOURCE_PAGE, provenance=None
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         package = directory / "pack.zip"
-        with zipfile.ZipFile(package, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+        # Stored entries are byte-identical across OS/zlib versions; WebP is already compressed.
+        with zipfile.ZipFile(package, "w", compression=zipfile.ZIP_STORED) as archive:
             for name, data in [("bank.json", bank), *sorted(images.items())]:
                 info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
-                info.compress_type = zipfile.ZIP_DEFLATED
+                info.create_system = 3
+                info.compress_type = zipfile.ZIP_STORED
                 info.external_attr = 0o100644 << 16
                 archive.writestr(info, data)
         catalog["subjects"].append({
