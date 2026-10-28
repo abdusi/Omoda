@@ -20,9 +20,7 @@ def publish():
         raise RuntimeError(fetch.stderr.decode(errors="replace"))
     parent = git("rev-parse", "FETCH_HEAD").stdout.decode().strip() if fetch.returncode == 0 else None
     catalog = json.loads((OUTPUT / "catalog.json").read_text("utf-8"))
-    if parent and not any(s.get("source") for s in catalog["subjects"]):
-        print("Initial content already exists; seed will not replace published banks")
-        return
+    preserve_catalog = parent and not any(s.get("source") for s in catalog["subjects"])
     with tempfile.TemporaryDirectory(prefix="omoda-index-") as temporary:
         env = dict(os.environ, GIT_INDEX_FILE=str(Path(temporary) / "index"))
         git("read-tree", parent if parent else "--empty", env=env)
@@ -33,6 +31,9 @@ def publish():
                      data="".join(str(p) + "\n" for p in files).encode()).stdout.decode().splitlines()
         if len(hashes) != len(files):
             raise ValueError("Incomplete Git object generation")
+        if preserve_catalog:
+            # Host the bundled bootstrap versions too, without downgrading the live catalog.
+            hashes[files.index(OUTPUT / "catalog.json")] = git("rev-parse", f"{parent}:catalog.json").stdout.decode().strip()
         if parent:
             existing = {}
             for record in git("ls-tree", "-r", parent).stdout.decode().splitlines():

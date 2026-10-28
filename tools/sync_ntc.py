@@ -106,7 +106,7 @@ def sync(workspace, output, page_url=SOURCE_PAGE, selected=SUBJECTS, limit=0):
         expected = {number for number in keys if not limit or number <= limit}
         with tempfile.TemporaryDirectory(prefix="import-", dir=workspace) as temporary:
             stage = Path(temporary)
-            extract(sources, limit, [spec], output_root=stage)
+            extract(sources, limit, [spec], report_name=f"{sid}.json", output_root=stage)
             bank_path = stage / "app/src/main/assets" / f"{sid}.json"
             questions = json.loads(bank_path.read_text("utf-8"))
             if {q["number"] for q in questions} != expected:

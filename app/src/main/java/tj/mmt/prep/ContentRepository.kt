@@ -143,6 +143,7 @@ class ContentRepository(context: Context) {
             } else {
                 File(bankDirectory(selectedRelease), "bank.json").copyTo(bankFile)
             }
+            require(ContentFiles.sha256(bankFile) == selectedRelease.bankSha256) { "Bank checksum mismatch" }
             val raw = JSONArray(bankFile.readText())
             require(raw.length() == selectedRelease.count)
             // Validate IDs and keys before choosing a random sample.
@@ -178,7 +179,8 @@ class ContentRepository(context: Context) {
             }
             bankFile.writeText(JSONArray(chosen).toString())
             val questions = QuestionBank.parse(bankFile.readText(), temporary, checkImages = true)
-            File(temporary, "release.json").writeText(selectedRelease.json().put("online", online).toString())
+            File(temporary, "release.json").writeText(selectedRelease.json().put("online", online)
+                .put("sessionBankSha256", ContentFiles.sha256(bankFile)).toString())
             context.ensureActive()
             ContentFiles.replace(File(root, "session.txt"), temporary.name.toByteArray(Charsets.UTF_8))
             File(root, "sessions").listFiles()?.filter { it != temporary }?.forEach { it.deleteRecursively() }
@@ -193,7 +195,14 @@ class ContentRepository(context: Context) {
         val name = File(root, "session.txt").readText().trim()
         require(name.matches(Regex("[a-f0-9-]{36}")))
         val directory = ContentFiles.child(root, "sessions/" + name)
-        return QuestionBank.parse(File(directory, "bank.json").readText(), directory, checkImages = true)
+        val bank = File(directory, "bank.json")
+        val metadata = JSONObject(File(directory, "release.json").readText())
+        require(ContentFiles.sha256(bank) == metadata.getString("sessionBankSha256"))
+        val questions = QuestionBank.parse(bank.readText(), directory, checkImages = true)
+        questions.flatMap { listOf(it.prompt) + it.options }.filter { it.visual }.distinctBy { it.image }.forEach {
+            require(ContentFiles.sha256(File(it.image)) == it.sha256)
+        }
+        return questions
     }
 
     private fun validateBank(directory: File, release: BankRelease, allImages: Boolean, check: () -> Unit) {

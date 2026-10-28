@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -42,7 +41,7 @@ class PublishTests(unittest.TestCase):
             (output / "catalog.json").write_text(json.dumps({"subjects": [{"source": {"year": 2026}}]}))
             with patch.object(publish_content, "ROOT", checkout), patch.object(publish_content, "OUTPUT", output):
                 publish_content.publish()
-                first = git("rev-parse", "FETCH_HEAD") if False else git("ls-remote", "origin", "content").split()[0]
+                first = git("ls-remote", "origin", "content").split()[0]
                 self.assertEqual(git("rev-parse", "HEAD"), original_head)
                 self.assertEqual(git("write-tree"), original_index)
                 bank.write_text("changed without a new version")

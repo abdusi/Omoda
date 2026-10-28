@@ -37,12 +37,16 @@ jobs:
           path: .source
           key: ntc-v1-${{ github.run_id }}
           restore-keys: ntc-v1-
-      - name: Import current source PDFs
-        if: github.event_name == 'schedule' || inputs.refresh_ntc == true
-        run: python tools/sync_ntc.py
       - name: Build initial content from the verified repository banks
-        if: github.event_name != 'schedule' && inputs.refresh_ntc != true
-        run: python tools/content.py
+        if: github.event_name == 'push' || inputs.refresh_ntc == false
+        run: |
+          python tools/content.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python tools/publish_content.py
+      - name: Import current source PDFs
+        if: github.event_name != 'workflow_dispatch' || inputs.refresh_ntc == true
+        run: python tools/sync_ntc.py
       - name: Publish immutable versions and current catalog
         run: |
           git config user.name 'github-actions[bot]'
