@@ -8,6 +8,8 @@ from PIL import Image
 
 from content import SUBJECTS, build, digest, prepare_bank
 from sync_ntc import ALL_SPECS, discover
+from exam_catalog import A_SUBJECTS, B_SUBJECTS, ALL_SUBJECTS, CLUSTERS
+from import_component_b import parse_key_texts
 
 
 class ContentTests(unittest.TestCase):
@@ -76,20 +78,30 @@ class ContentTests(unittest.TestCase):
 
 class DiscoveryTests(unittest.TestCase):
     def page(self):
-        cells = []
-        for sid, spec in ALL_SPECS.items():
-            # Keys deliberately do not follow a filename suffix convention.
-            cells.append(f'<td><a href="/images/{spec[2]}.pdf">Questions</a>'
-                         '<a href="/images/open-type.pdf">Other section</a>'
-                         f'<a href="/images/keys_2026/{sid}.pdf">Keys</a></td>')
-        return "<table><tr>" + "".join(cells) + "</tr></table>"
+        tables = []
+        for component in ("A", "B"):
+            rows = []
+            for group in CLUSTERS[component]:
+                cells = []
+                for sid in group:
+                    spec = ALL_SPECS[sid]
+                    cells.append(f'<td><a href="/images/{spec[2]}.pdf">Questions</a>'
+                                 '<a href="/images/open-type.pdf">Other section</a>'
+                                 f'<a href="/images/keys_2026/{sid}.pdf">Keys</a>'
+                                 '<a href="/images/foreign-german.pdf">German</a>'
+                                 '<a href="/images/foreign-arabic.pdf">Arabic</a></td>')
+                rows.append("<tr>" + "".join(cells) + "</tr>")
+            tables.append("<table>" + "".join(rows) + "</table>")
+        return "".join(tables)
 
-    def test_pairs_by_table_cell_not_filename_and_ignores_component_b(self):
-        page = self.page() + '<table><td><a href="/images/A1-ALL_Tj.pdf">B</a><a href="/images/keys_2025/b.pdf">B key</a></td></table>'
-        pairs, year = discover(page)
+    def test_pairs_each_component_by_cell_and_ignores_other_foreign_languages(self):
+        pairs, year = discover(self.page())
         self.assertEqual(year, 2026)
-        self.assertEqual(len(pairs), 10)
+        self.assertEqual(len(pairs), 18)
         self.assertTrue(pairs["math"]["keysUrl"].endswith("/math.pdf"))
+        self.assertIn("/B-Math_tj.pdf", pairs["b_math"]["questionsUrl"])
+        self.assertNotEqual(pairs["english"]["questionsUrl"], pairs["b_english"]["questionsUrl"])
+        self.assertFalse(any("german" in p["questionsUrl"] or "arabic" in p["questionsUrl"] for p in pairs.values()))
 
     def test_missing_key_or_changed_layout_fails_closed(self):
         with self.assertRaises(ValueError):
@@ -102,6 +114,39 @@ class DiscoveryTests(unittest.TestCase):
             discover(self.page().replace("/images/A1-ALL_Tj.pdf", "https://untrusted.example/A1-ALL_Tj.pdf"))
         with self.assertRaises(ValueError):
             discover(self.page().replace("/keys_2026/math.pdf", "/keys_2027/math.pdf"))
+
+
+class ComponentBTests(unittest.TestCase):
+    def test_cyrillic_key_letters_and_same_page_section_boundary(self):
+        self.assertEqual(parse_key_texts(["1 А\n2 В\n3 С\n4 D\nБАРОИ МУАЙЯН\n1 2\n"]),
+                         {1: "A", 2: "B", 3: "C", 4: "D"})
+
+    def test_explicitly_blank_key_is_quarantined_but_unexplained_gap_fails(self):
+        self.assertEqual(parse_key_texts(["1 A\n2 \n3 C\n"]), {1: "A", 3: "C"})
+        with self.assertRaises(ValueError):
+            parse_key_texts(["1 A\n3 C\n"])
+        with self.assertRaises(ValueError):
+            parse_key_texts(["1 E\n"])
+
+    def test_v2_includes_B_and_legacy_catalog_remains_A_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            assets = ContentTests().fixture(root)
+            template = json.loads((assets / "tajik.json").read_text("utf-8"))
+            for sid in B_SUBJECTS:
+                if sid == "tajik":
+                    continue
+                bank = template[:18] if sid == "b_english" else template
+                bank = [dict(q, id=f"{sid}-{q['number']}") for q in bank]
+                (assets / f"{sid}.json").write_text(json.dumps(bank), encoding="utf-8")
+            v2 = build(assets, root / "out", include_b=True)
+            legacy = json.loads((root / "out/catalog.json").read_text("utf-8"))
+            self.assertEqual(v2["schema"], 2)
+            self.assertEqual({s["id"] for s in v2["subjects"]}, set(ALL_SUBJECTS))
+            self.assertEqual({s["id"] for s in legacy["subjects"]}, set(A_SUBJECTS))
+            self.assertEqual(legacy["schema"], 1)
+            self.assertEqual(next(s["count"] for s in v2["subjects"] if s["id"] == "b_english"), 18)
+            self.assertEqual([c["grade"] for c in v2["components"]], [11, 9])
 
 
 if __name__ == "__main__":

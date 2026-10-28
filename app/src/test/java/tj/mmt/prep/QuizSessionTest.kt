@@ -41,7 +41,20 @@ class QuizSessionTest {
         assertEquals(1, restored.selected)
         assertEquals(original, restored.answer(2))
     }
-    @Test(expected = IllegalArgumentException::class) fun `rejects insufficient bank`() {
-        QuizSession.start(List(25) { "same" })
+    @Test(expected = IllegalArgumentException::class) fun `rejects empty bank`() {
+        QuizSession.start(emptyList())
+    }
+    @Test fun `B English uses all 18 unique questions and scores its actual length`() {
+        val pool = (1..18).map { "b_english-" + it }
+        var attempt = QuizSession.start(pool, Random(42))
+        assertEquals(18, attempt.ids.size)
+        assertEquals(pool.toSet(), attempt.ids.toSet())
+        val correct = pool.associateWith { 2 }
+        repeat(18) { index ->
+            attempt = attempt.answer(if (index < 9) 2 else 0).next()
+        }
+        assertTrue(attempt.complete)
+        assertEquals(9, attempt.score(correct))
+        assertEquals(attempt, attempt.next())
     }
 }

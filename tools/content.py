@@ -7,9 +7,9 @@ from pathlib import Path, PurePosixPath
 import zipfile
 
 from PIL import Image
+from exam_catalog import A_SUBJECTS, ALL_SUBJECTS, COMPONENTS
 
-SUBJECTS = ("tajik", "math", "geography", "english", "biology",
-            "chemistry", "physics", "history", "law", "literature")
+SUBJECTS = A_SUBJECTS  # Compatibility for callers that export the original A seed.
 SOURCE_PAGE = "https://www.ntc.tj/tj/ba-dovtalab/testho.html"
 
 
@@ -34,8 +34,8 @@ def asset_path(root, name):
 
 def prepare_bank(assets, sid):
     questions = json.loads((assets / f"{sid}.json").read_text(encoding="utf-8"))
-    if len(questions) < 25 or len({q["id"] for q in questions}) != len(questions):
-        raise ValueError(f"{sid}: at least 25 unique questions required")
+    if not 1 <= len(questions) <= 10000 or len({q["id"] for q in questions}) != len(questions):
+        raise ValueError(f"{sid}: a nonempty bank of unique questions required")
     questions = copy.deepcopy(questions)
     images = {}
     for q in questions:
@@ -60,10 +60,10 @@ def prepare_bank(assets, sid):
     return questions, images
 
 
-def build(assets, output, *, year=2026, source_page=SOURCE_PAGE, provenance=None):
+def build(assets, output, *, year=2026, source_page=SOURCE_PAGE, provenance=None, include_b=False):
     output.mkdir(parents=True, exist_ok=True)
     catalog = {"schema": 1, "year": year, "sourcePage": source_page, "subjects": []}
-    for sid in SUBJECTS:
+    for sid in ALL_SUBJECTS if include_b else A_SUBJECTS:
         questions, images = prepare_bank(assets, sid)
         bank = encode(questions)
         version = digest(str(year).encode("ascii") + b"\n" + bank)
@@ -92,7 +92,11 @@ def build(assets, output, *, year=2026, source_page=SOURCE_PAGE, provenance=None
             "source": (provenance or {}).get(sid, {}),
         })
     (output / "catalog.json").write_bytes(encode(catalog))
-    return catalog
+    legacy = dict(catalog, subjects=[s for s in catalog["subjects"] if s["id"] in A_SUBJECTS])
+    (output / "catalog.json").write_bytes(encode(legacy))
+    catalog_v2 = dict(catalog, schema=2, components=COMPONENTS)
+    (output / "catalog-v2.json").write_bytes(encode(catalog_v2))
+    return catalog_v2
 
 
 if __name__ == "__main__":
@@ -100,6 +104,7 @@ if __name__ == "__main__":
     parser.add_argument("--assets", type=Path, default=Path("app/src/main/assets"))
     parser.add_argument("--output", type=Path, default=Path(".content"))
     parser.add_argument("--year", type=int, default=2026)
+    parser.add_argument("--include-b", action="store_true")
     args = parser.parse_args()
-    result = build(args.assets, args.output, year=args.year)
+    result = build(args.assets, args.output, year=args.year, include_b=args.include_b)
     print(f"Published locally: {sum(s['count'] for s in result['subjects'])} questions")

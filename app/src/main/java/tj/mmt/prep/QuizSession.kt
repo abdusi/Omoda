@@ -5,7 +5,7 @@ import kotlin.random.Random
 /** Immutable session: the first answer is final, and advancing requires an answer. */
 data class QuizSession(val ids: List<String>, val answers: List<Int>, val index: Int = 0) {
     init {
-        require(ids.size == 25 && ids.distinct().size == 25)
+        require(ids.size in 1..25 && ids.distinct().size == ids.size)
         require(answers.size == ids.size && answers.all { it in -1..3 })
         require(index in ids.indices)
         require(answers.take(index).all { it != -1 })
@@ -27,8 +27,9 @@ data class QuizSession(val ids: List<String>, val answers: List<Int>, val index:
     companion object {
         fun start(pool: List<String>, random: Random = Random.Default): QuizSession {
             val unique = pool.distinct()
-            require(unique.size >= 25) { "At least 25 different questions required" }
-            return QuizSession(unique.shuffled(random).take(25), List(25) { -1 })
+            require(unique.isNotEmpty()) { "At least one question required" }
+            val chosen = unique.shuffled(random).take(25)
+            return QuizSession(chosen, List(chosen.size) { -1 })
         }
     }
 }

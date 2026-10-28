@@ -31,7 +31,7 @@ data class BankRelease(val id: String, val version: String, val year: Int, val c
             val release = BankRelease(json.getString("id"), json.getString("version"), json.getInt("year"), json.getInt("count"),
                 json.getString("path"), json.getString("bankSha256"), json.getString("packSha256"),
                 json.getLong("packBytes"), json.getLong("unpackedBytes"))
-            require(subjects.any { it.id == release.id } && release.count in 25..10000)
+            require(subjects.any { it.id == release.id } && release.count in 1..10000)
             require(release.year in 2026..2100)
             require(listOf(release.version, release.bankSha256, release.packSha256)
                 .all { it.matches(Regex("[a-f0-9]{64}")) })
@@ -46,10 +46,28 @@ data class ContentCatalog(val year: Int, val banks: Map<String, BankRelease>) {
     companion object {
         fun parse(text: String): ContentCatalog {
             val json = JSONObject(text)
-            require(json.getInt("schema") == 1)
+            val schema = json.getInt("schema")
+            require(schema in 1..2)
             val array = json.getJSONArray("subjects")
             val entries = (0 until array.length()).map { BankRelease.parse(array.getJSONObject(it)) }
             require(entries.map { it.id }.distinct().size == entries.size && entries.isNotEmpty())
+            if (schema == 1) require(entries.none { it.id.startsWith("b_") })
+            if (schema == 2) {
+                val components = json.getJSONArray("components")
+                require(components.length() == examComponents.size)
+                examComponents.forEachIndexed { index, expected ->
+                    val component = components.getJSONObject(index)
+                    require(component.getString("id") == expected.id && component.getInt("grade") == expected.grade)
+                    val groups = component.getJSONArray("clusters")
+                    require(groups.length() == expected.clusters.size)
+                    expected.clusters.forEachIndexed { groupIndex, group ->
+                        val entry = groups.getJSONObject(groupIndex)
+                        val ids = entry.getJSONArray("subjects")
+                        require(entry.getInt("id") == group.id &&
+                            (0 until ids.length()).map { ids.getString(it) } == group.subjectIds)
+                    }
+                }
+            }
             val year = json.getInt("year")
             require(year in 2026..2100)
             return ContentCatalog(year, entries.associateBy { it.id })
@@ -62,7 +80,7 @@ class ContentRepository(context: Context) {
     private val root = File(context.filesDir, "study").also { it.mkdirs() }
     private val bootstrap = context.assets.open("catalog.json").bufferedReader().use { it.readText() }
     private val base = BuildConfig.CONTENT_BASE_URL.trimEnd('/') + "/"
-    private val catalogFile = File(root, "catalog.json")
+    private val catalogFile = File(root, "catalog-v2.json")
 
     suspend fun cleanupInterruptedDownloads() = withContext(Dispatchers.IO) {
         File(root, "temporary").deleteRecursively()
@@ -83,7 +101,7 @@ class ContentRepository(context: Context) {
         val context = currentCoroutineContext()
         val temporary = File(root, "catalog.download")
         try {
-            fetch("catalog.json", temporary, 512_000, check = { context.ensureActive() })
+            fetch("catalog-v2.json", temporary, 512_000, check = { context.ensureActive() })
             val text = temporary.readText()
             val catalog = ContentCatalog.parse(text)
             ContentFiles.replace(catalogFile, text.toByteArray(Charsets.UTF_8))
@@ -239,7 +257,7 @@ class ContentRepository(context: Context) {
         connection.connectTimeout = 15_000
         connection.readTimeout = 30_000
         connection.instanceFollowRedirects = false
-        connection.setRequestProperty("User-Agent", "Omoda/0.5")
+        connection.setRequestProperty("User-Agent", "Omoda/0.6")
         try {
             require(connection.responseCode == 200) { "HTTP " + connection.responseCode }
             require(connection.contentLengthLong <= maximum)

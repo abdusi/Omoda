@@ -74,13 +74,14 @@ def crop_image(page_image, box, scale, path, extra_boxes=()):
             "width": image.width, "height": image.height}
 
 
-def extract(source, limit, specs=SPECS, report_name="import-report.json", *, output_root=None):
+def extract(source, limit, specs=SPECS, report_name="import-report.json", *, output_root=None,
+            key_reader=answer_keys, minimum_count=25, end_page=None):
     output_root = Path(output_root) if output_root is not None else ROOT
     assets = output_root / "app/src/main/assets"
     assets.mkdir(parents=True, exist_ok=True)
     report = []
     for sid, title, stem, start, key_start in specs:
-        keys = answer_keys(source / f"{stem}_key.pdf", key_start)
+        keys = key_reader(source / f"{stem}_key.pdf", key_start)
         cap = min(limit or max(keys), max(keys))
         images = assets / "questions" / sid
         images.mkdir(parents=True, exist_ok=True)
@@ -88,7 +89,7 @@ def extract(source, limit, specs=SPECS, report_name="import-report.json", *, out
         clean_bytes, removed = without_watermarks(source / f"{stem}.pdf")
         doc = pdfium.PdfDocument(clean_bytes)
         with pdfplumber.open(BytesIO(clean_bytes)) as pdf:
-            for pi in range(start, len(pdf.pages)):
+            for pi in range(start, min(end_page, len(pdf.pages)) if end_page is not None else len(pdf.pages)):
                 page = pdf.pages[pi]
                 # pdfplumber marks 45-degree watermark glyphs as upright too.
                 # Read horizontal text after removing tagged watermark objects.
@@ -222,8 +223,9 @@ def extract(source, limit, specs=SPECS, report_name="import-report.json", *, out
                     break
                 page.close()
         doc.close()
-        assert len(items) >= 25, (sid, len(items), skipped)
-        assert len({q["id"] for q in items}) == len(items)
+        assert len(items) >= minimum_count, (sid, len(items), skipped)
+        assert len({q["id"] for q in items}) == len(items), [
+            (q["id"], q["page"]) for q in items if sum(x["id"] == q["id"] for x in items) > 1]
         (assets/f"{sid}.json").write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
         report.append({"subject": sid, "title": title, "count": len(items), "range": [1, cap], "skipped": skipped,
                        "watermark_blocks_removed": sum(removed), "watermark_pages": len([n for n in removed if n])})

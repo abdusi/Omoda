@@ -34,6 +34,11 @@ def publish():
         if preserve_catalog:
             # Host the bundled bootstrap versions too, without downgrading the live catalog.
             hashes[files.index(OUTPUT / "catalog.json")] = git("rev-parse", f"{parent}:catalog.json").stdout.decode().strip()
+            v2 = OUTPUT / "catalog-v2.json"
+            if v2 in files:
+                previous = git("rev-parse", "--verify", f"{parent}:catalog-v2.json", check=False)
+                if previous.returncode == 0:
+                    hashes[files.index(v2)] = previous.stdout.decode().strip()
         if parent:
             existing = {}
             for record in git("ls-tree", "-r", parent).stdout.decode().splitlines():

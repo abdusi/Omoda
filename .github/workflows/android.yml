@@ -1,7 +1,7 @@
 name: Android and content checks
 on:
   push:
-    branches: [main, codex/online-offline-tests]
+    branches: [main, codex/online-offline-tests, codex/components-a-b]
   pull_request:
 permissions:
   contents: read
@@ -20,7 +20,7 @@ jobs:
       - run: python -m unittest discover -s tools -p 'test_*.py' -v
       - run: python tools/content.py
       - name: Verify bundled catalog matches generated seed
-        run: cmp .content/catalog.json app/src/main/bootstrap/catalog.json
+        run: cmp .content/catalog-v2.json app/src/main/bootstrap/catalog.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -36,7 +36,7 @@ jobs:
         run: python tools/check_apk.py app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Omoda-0.5-debug
+          name: Omoda-0.6-debug
           path: app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         if: always()

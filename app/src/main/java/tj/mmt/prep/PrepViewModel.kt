@@ -14,11 +14,12 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class Screen { CLUSTERS, SUBJECTS, QUIZ, RESULT }
+enum class Screen { COMPONENTS, CLUSTERS, SUBJECTS, QUIZ, RESULT }
 
 class PrepViewModel(private val repository: ContentRepository, private val saved: SavedStateHandle) : ViewModel() {
     var loading by mutableStateOf(true); private set
-    var screen by mutableStateOf(Screen.CLUSTERS); private set
+    var screen by mutableStateOf(Screen.COMPONENTS); private set
+    var componentId by mutableStateOf("A"); private set
     var subjectId by mutableStateOf("tajik"); private set
     var clusterId by mutableStateOf(2); private set
     var session by mutableStateOf<QuizSession?>(null); private set
@@ -33,7 +34,9 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
     private var operation: Job? = null
     private var questions by mutableStateOf<List<Question>>(emptyList())
     val subject: Subject get() = subjects.first { it.id == subjectId }
-    val cluster: Cluster get() = clusters.first { it.id == clusterId }
+    val component: ExamComponent get() = examComponents.first { it.id == componentId }
+    val availableClusters: List<Cluster> get() = component.clusters
+    val cluster: Cluster get() = availableClusters.first { it.id == clusterId }
     val activeSubjects: List<Subject> get() = cluster.subjects
     val ordered: List<Question> get() {
         val byId = questions.associateBy { it.id }
@@ -41,6 +44,27 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
     }
     val question: Question? get() = session?.let { ordered.getOrNull(it.index) }
     val score: Int get() = session?.score(ordered.associate { it.id to it.correct }) ?: 0
+    val testSize: Int get() = session?.ids?.size ?: 25
+    fun subjectCode(id: String): String = component.subjectCode(cluster, id)
+
+    fun openComponent(id: String) {
+        if (busy || examComponents.none { it.id == id }) return
+        componentId = id
+        clusterId = 1
+        subjectId = component.clusters.first().subjectIds.first()
+        session = null
+        questions = emptyList()
+        screen = Screen.CLUSTERS
+        persist()
+    }
+
+    fun chooseComponent() {
+        if (busy) return
+        session = null
+        questions = emptyList()
+        screen = Screen.COMPONENTS
+        persist()
+    }
 
     init {
         viewModelScope.launch {
@@ -127,7 +151,7 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
 
     fun openSubjects(id: Int) {
         if (busy) return
-        val selected = clusters.firstOrNull { it.id == id && it.available } ?: return
+        val selected = availableClusters.firstOrNull { it.id == id && it.available } ?: return
         clusterId = selected.id
         if (subjectId !in selected.subjectIds) subjectId = selected.subjectIds.first()
         screen = Screen.SUBJECTS
@@ -151,9 +175,9 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
             subjectId = id
             onlineMode = online
             attemptYear = if (online) requireNotNull(release).year else requireNotNull(downloaded[id]).year
-            // The repository has already chosen and persisted these exact 25 questions.
+            // The repository has persisted this exact attempt, including small banks.
             questions = loaded
-            session = QuizSession(loaded.map { it.id }, List(25) { -1 })
+            session = QuizSession(loaded.map { it.id }, List(loaded.size) { -1 })
             screen = Screen.QUIZ
             persist()
         }
@@ -169,6 +193,7 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
 
     private fun persist() {
         saved["screen"] = screen.name
+        saved["component"] = componentId
         saved["subject"] = subjectId
         saved["cluster"] = clusterId
         saved["online"] = onlineMode
@@ -179,11 +204,12 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
     }
 
     private fun restore() {
-        clusterId = saved.get<Int>("cluster")?.takeIf { id -> clusters.any { it.id == id && it.available } } ?: 2
+        componentId = saved.get<String>("component")?.takeIf { id -> examComponents.any { it.id == id } } ?: "A"
+        clusterId = saved.get<Int>("cluster")?.takeIf { id -> availableClusters.any { it.id == id && it.available } } ?: 1
         subjectId = saved.get<String>("subject")?.takeIf { it in cluster.subjectIds } ?: cluster.subjectIds.first()
         onlineMode = saved.get<Boolean>("online") ?: false
         attemptYear = saved.get<Int>("year") ?: catalog.year
-        screen = saved.get<String>("screen")?.let { runCatching { Screen.valueOf(it) }.getOrNull() } ?: Screen.CLUSTERS
+        screen = saved.get<String>("screen")?.let { runCatching { Screen.valueOf(it) }.getOrNull() } ?: Screen.COMPONENTS
         session = runCatching {
             val json = JSONObject(saved.get<String>("session") ?: return@runCatching null)
             val ids = json.getJSONArray("ids")
@@ -193,7 +219,9 @@ class PrepViewModel(private val repository: ContentRepository, private val saved
         }.getOrNull()
         val validIds = questions.map { it.id }.toSet()
         if (screen in listOf(Screen.QUIZ, Screen.RESULT) &&
-            (session == null || session!!.ids.any { it !in validIds } || (screen == Screen.RESULT && !session!!.complete))) {
+            (session == null || session!!.ids.any { it !in validIds } ||
+                questions.any { !it.id.startsWith(subjectId + "-") } ||
+                (screen == Screen.RESULT && !session!!.complete))) {
             session = null
             questions = emptyList()
             screen = Screen.SUBJECTS

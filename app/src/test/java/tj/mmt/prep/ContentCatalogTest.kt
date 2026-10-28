@@ -23,7 +23,7 @@ class ContentCatalogTest {
     }
 
     @Test fun rejectsUnsupportedSchemaAndDuplicateSubjects() {
-        val catalog = JSONObject().put("schema", 2).put("year", 2026).put("subjects", JSONArray().put(release()))
+        val catalog = JSONObject().put("schema", 3).put("year", 2026).put("subjects", JSONArray().put(release()))
         assertThrows(IllegalArgumentException::class.java) { ContentCatalog.parse(catalog.toString()) }
         catalog.put("schema", 1).getJSONArray("subjects").put(release())
         assertThrows(IllegalArgumentException::class.java) { ContentCatalog.parse(catalog.toString()) }
