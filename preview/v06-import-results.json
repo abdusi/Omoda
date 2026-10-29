@@ -1,0 +1,133 @@
+{
+  "components": [
+    {
+      "clusters": [
+        {
+          "id": 1,
+          "subjects": [
+            "tajik",
+            "math",
+            "chemistry",
+            "physics"
+          ]
+        },
+        {
+          "id": 2,
+          "subjects": [
+            "tajik",
+            "math",
+            "geography",
+            "english"
+          ]
+        },
+        {
+          "id": 3,
+          "subjects": [
+            "tajik",
+            "history",
+            "literature",
+            "english"
+          ]
+        },
+        {
+          "id": 4,
+          "subjects": [
+            "tajik",
+            "history",
+            "law",
+            "english"
+          ]
+        },
+        {
+          "id": 5,
+          "subjects": [
+            "tajik",
+            "biology",
+            "chemistry",
+            "physics"
+          ]
+        }
+      ],
+      "grade": 11,
+      "id": "A"
+    },
+    {
+      "clusters": [
+        {
+          "id": 1,
+          "subjects": [
+            "tajik",
+            "b_math",
+            "b_physics"
+          ]
+        },
+        {
+          "id": 2,
+          "subjects": [
+            "tajik",
+            "b_math",
+            "b_geography"
+          ]
+        },
+        {
+          "id": 3,
+          "subjects": [
+            "tajik",
+            "b_literature",
+            "b_english"
+          ]
+        },
+        {
+          "id": 4,
+          "subjects": [
+            "tajik",
+            "b_history",
+            "b_english"
+          ]
+        },
+        {
+          "id": 5,
+          "subjects": [
+            "tajik",
+            "b_biology",
+            "b_chemistry"
+          ]
+        }
+      ],
+      "grade": 9,
+      "id": "B"
+    }
+  ],
+  "counts": {
+    "tajik": 768,
+    "math": 624,
+    "geography": 409,
+    "english": 190,
+    "biology": 472,
+    "chemistry": 519,
+    "physics": 504,
+    "history": 480,
+    "law": 414,
+    "literature": 312,
+    "b_math": 315,
+    "b_physics": 267,
+    "b_geography": 300,
+    "b_literature": 410,
+    "b_english": 18,
+    "b_history": 321,
+    "b_biology": 381,
+    "b_chemistry": 346
+  },
+  "uniqueQuestions": 7050,
+  "quarantine": {
+    "b_biology": {
+      "questionWithoutKey": [
+        369
+      ],
+      "keyWithoutQuestion": [
+        383
+      ]
+    }
+  },
+  "verification": "All eight B banks imported and matched against official keys; A/B identifiers and assets are isolated."
+}

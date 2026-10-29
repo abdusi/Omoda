@@ -39,6 +39,7 @@ class PublishTests(unittest.TestCase):
             bank.write_text("original")
             # A live import is allowed to update the catalog but never existing version files.
             (output / "catalog.json").write_text(json.dumps({"subjects": [{"source": {"year": 2026}}]}))
+            (output / "catalog-v2.json").write_text(json.dumps({"schema": 2, "tag": "live-A-and-B"}))
             with patch.object(publish_content, "ROOT", checkout), patch.object(publish_content, "OUTPUT", output):
                 publish_content.publish()
                 first = git("ls-remote", "origin", "content").split()[0]
@@ -53,10 +54,12 @@ class PublishTests(unittest.TestCase):
                 newer.parent.mkdir(parents=True)
                 newer.write_text("another bootstrap version")
                 (output / "catalog.json").write_text(json.dumps({"subjects": [{"source": {}}]}))
+                (output / "catalog-v2.json").write_text(json.dumps({"schema": 2, "tag": "A-only-seed"}))
                 publish_content.publish()
                 latest = git("ls-remote", "origin", "content").split()[0]
                 live = json.loads(git("show", f"{latest}:catalog.json"))
                 self.assertEqual(live["subjects"][0]["source"]["year"], 2026)
+                self.assertEqual(json.loads(git("show", f"{latest}:catalog-v2.json"))["tag"], "live-A-and-B")
                 self.assertEqual(git("show", f"{latest}:banks/tajik/other-version/bank.json"), "another bootstrap version")
                 self.assertEqual(git("write-tree"), original_index)
 

@@ -33,7 +33,7 @@ def dismiss():
         tap("Фаҳмо", doc)
 
 
-def tap_in_card(title, label):
+def tap_in_card(title, label, starts_with=False):
     for _ in range(8):
         doc = tree()
         parents = {child: parent for parent in doc.iter() for child in parent}
@@ -42,7 +42,8 @@ def tap_in_card(title, label):
             card = heading
             while card in parents:
                 card = parents[card]
-                target = next((n for n in card.iter("node") if n.get("text") == label), None)
+                target = next((n for n in card.iter("node") if n.get("text") == label or
+                               (starts_with and n.get("text", "").startswith(label))), None)
                 if target is not None:
                     while target.get("clickable") != "true" and target in parents:
                         target = parents[target]
@@ -65,7 +66,7 @@ def session_bank():
 def leave():
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     tap("Баромадан")
-    wait_for(lambda doc: "Кластери 4" in texts(doc))
+    wait_for(lambda doc: any("Кластери 4" in t for t in texts(doc)))
 
 
 def run(download_only=False):
@@ -77,6 +78,8 @@ def run(download_only=False):
         return
     # Start with the app on the cluster screen; do not clear user/app data.
     dismiss()
+    if "Варианти А" in texts(tree()):
+        tap("Варианти А")
     tap("Ҷомеашиносӣ ва ҳуқуқ")
     tap_in_card("Забони тоҷикӣ", "Онлайн")
     doc = wait_for(lambda d: "1 / 25" in texts(d))

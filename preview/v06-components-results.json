@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Component А: all five clusters contain only their official subjects and subtest codes",
+    "Component Б: all five clusters contain only their official subjects and subtest codes",
+    "Component B, English source, submitted answer and 18-question length survive process death",
+    "All 18 B English questions are unique; 9 correct answers produce 50%",
+    "Downloaded B English works without either network or the local test server",
+    "Switching B to A uses the A English bank and returns to 25-question attempts",
+    "B cluster download installs exactly its shared Tajik, B math and B physics banks; visual math works offline"
+  ],
+  "passed": 7,
+  "complete": true,
+  "transport": "loopback server with the verified NTC A/B catalog; offline checks disable/remove both transports"
+}
